@@ -1,33 +1,28 @@
-from flask import Flask, render_template, request
+from flask import Flask, render_template, request, redirect, url_for
 from deepface import DeepFace
 import os
 from datetime import datetime
 
-# Flask 앱 초기화
 app = Flask(__name__)
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 
 # 업로드 폴더 없으면 생성
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# 홈 페이지 라우트
 @app.route('/')
 def index():
     return render_template('index.html')
 
-# 이미지 분석 라우트
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    if 'file' not in request.files:
-        return "이미지를 업로드하세요.", 400
+    file = request.files.get('file')  # 안전하게 가져오기
+    if not file or file.filename == '':
+        return redirect(url_for('index'))  # 파일 없으면 홈으로
 
-    file = request.files['file']
-    if file.filename == '':
-        return "파일이 선택되지 않았습니다.", 400
-
-    # 업로드 파일 저장
+    # 파일 이름에 공백이나 한글 문제 방지
+    filename = file.filename.replace(" ", "_")
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-    filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{timestamp}_{file.filename}")
+    filepath = os.path.join(app.config['UPLOAD_FOLDER'], f"{timestamp}_{filename}")
     file.save(filepath)
 
     try:
@@ -47,8 +42,9 @@ def analyze():
         return render_template('result.html', result=analysis, image_path=filepath)
 
     except Exception as e:
-        return f"분석 중 오류가 발생했습니다: {e}"
+        # 에러 발생 시 홈으로 돌아가면서 에러 메시지 출력
+        return f"분석 중 오류가 발생했습니다: {e}<br><a href='/'>홈으로 돌아가기</a>"
 
-# 서버 실행
 if __name__ == '__main__':
-    app.run(debug=True)
+    # 호스트를 0.0.0.0으로 지정하면 외부 접속도 가능
+    app.run(debug=True, host='0.0.0.0', port=5000)
